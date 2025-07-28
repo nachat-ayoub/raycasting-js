@@ -26,7 +26,7 @@ const DOWN_ARROW = 40;
 const LEFT_ARROW = 37;
 const RIGHT_ARROW = 39;
 
-const TILE_SIZE = 32;
+const TILE_SIZE = 42;
 const ROWS = 11;
 const COLS = 15;
 
@@ -34,7 +34,7 @@ const WINDOW_H = ROWS * TILE_SIZE;
 const WINDOW_W = COLS * TILE_SIZE;
 
 const FOV = toRad(60);
-const RAY_THIKNESS = 10;
+const RAY_THIKNESS = 1;
 const NUM_RAYS = WINDOW_W / RAY_THIKNESS;
 const RAY_ANGLE = FOV / NUM_RAYS;
 
@@ -136,16 +136,18 @@ function getPlayerPos(map) {
 const player = new Player(...getPlayerPos(map.map), map.map); // ✅ Don't forget this
 let rays = [];
 
+let test = 1;
+
 class Ray {
 	constructor(rayAngle) {
 		this.rayAngle = normalizeAngle(rayAngle);
 		this.distance = 0;
 		this.isFacingDown = this.rayAngle > 0 && this.rayAngle < Math.PI;
 		this.isFacingUP = !this.isFacingDown;
-		this.wallHitX = 0;
-		this.wallHitY = 0;
 		this.isFacingRight = this.rayAngle < Math.PI * 0.5 || this.rayAngle > Math.PI * 1.5;
 		this.isFacingLeft = !this.isFacingRight;
+		this.wallHitX = 0;
+		this.wallHitY = 0;
 	}
 	cast() {
 		//======== check Horizontal interceptions: =======
@@ -155,13 +157,14 @@ class Ray {
 		let vert = this.getVerticalWallHit();
 
 		if (vert.dist < horiz.dist) {
+			this.distance = vert.dist;
 			this.wallHitX = vert.x;
 			this.wallHitY = vert.y;
 		} else {
+			this.distance = horiz.dist;
 			this.wallHitX = horiz.x;
 			this.wallHitY = horiz.y;
 		}
-
 	}
 
 	getHorizontalWallHit() {
@@ -187,11 +190,8 @@ class Ray {
 		let nextIntercX = intercX;
 		let nextIntercY = intercY;
 
-		if (this.isFacingUP)
-			nextIntercY--;
-
 		while (map.inBoundaries(nextIntercX, nextIntercY)) {
-			if (map.hasWallAt(nextIntercX, nextIntercY)) {
+			if (map.hasWallAt(nextIntercX, nextIntercY - (this.isFacingUP ? 1 : 0))) {
 				foundHit = true;
 				hitX = nextIntercX;
 				hitY = nextIntercY;
@@ -234,11 +234,8 @@ class Ray {
 		let nextIntercX = intercX;
 		let nextIntercY = intercY;
 
-		if (this.isFacingLeft)
-			nextIntercX--;
-
 		while (map.inBoundaries(nextIntercX, nextIntercY)) {
-			if (map.hasWallAt(nextIntercX, nextIntercY)) {
+			if (map.hasWallAt(nextIntercX - (this.isFacingLeft ? 1 : 0), nextIntercY)) {
 				foundHit = true;
 				hitX = nextIntercX;
 				hitY = nextIntercY;
@@ -258,9 +255,44 @@ class Ray {
 		});
 	}
 
-	render() {
+	render() { 
 		stroke("orange");
 		line(player.x, player.y, this.wallHitX, this.wallHitY);
+	}
+	renderWall(index) {
+		const WALL_SIZE = TILE_SIZE;
+		const ProjPlaneDist = (WINDOW_W/2) / Math.tan(FOV/2);
+		
+		let fixedDist = this.distance * Math.cos(this.rayAngle - player.angle);
+		let width = RAY_THIKNESS;
+		let height = this.distance == 0 ? WALL_SIZE :  (WALL_SIZE / fixedDist) * ProjPlaneDist;
+		
+		const x = index*width;
+		const y = WINDOW_H/2 - height/2;
+		if (test)
+		{
+			log({
+				RAY_THIKNESS,
+				distance:fixedDist,
+				ProjPlaneDist,
+				x,y,width,height 
+			});
+		}
+		if (index == 3)
+			test = 0;
+		noStroke();
+		let c = 255;
+
+		if (this.rayAngle > Math.PI > 2)
+			c = c/2;
+		
+		let color =  c * (70 / fixedDist);
+		if (color > 255)
+			color = 255;
+		if (color < 0)
+			color = 0;
+		fill("rgb(0,"+color.toFixed(0)+",0)");
+		rect(x,y, width, height)
 	}
 }
 
@@ -269,11 +301,9 @@ function castAllrays() {
 	for (let i = 0; i < NUM_RAYS; i++) {
 		const ray = new Ray(startRayAngle);
 		ray.cast();
-		ray.render();
 		rays.push(ray);
 		startRayAngle += RAY_ANGLE;
 	}
-	rays = [];
 }
 
 function keyPressed() {
@@ -303,15 +333,19 @@ function setup() {
 }
 
 function update() {
+	rays = [];
 	player.update();
+	castAllrays();
 }
-let test = 0;
 function draw() {
 	update();
-	background(220);
-	map.render();
-	if (test == 0)
-		castAllrays();
-	// test = 1;
-	player.render();
+	background(40);
+	// map.render();
+	// player.render();
+	for (let i = 0; i < rays.length; i++) {
+		const ray = rays[i];
+		// ray.render();
+		ray.renderWall(i);
+	}
+	fill('red');
 }
